@@ -6,6 +6,10 @@ const jwt = require('jsonwebtoken');
 const keys = require('../../config/keys');
 const passport = require('passport');
 
+// load input validator
+const validateRegisterInput = require('../../validation/register');
+const valiadteLoginInput = require('../../validation/login');
+
 // load user model
 const User = require('../../models/User');
 
@@ -18,10 +22,19 @@ router.get('/test', (req, res) => res.json({msg: "users works"}));
 // @desc register user
 // @access public
 router.post('/register', (req, res) => {
+
+    const { errors, isValid } = validateRegisterInput(req.body);
+    // check validation
+    if(!isValid){
+        console.log('here!')
+        return res.status(400).json(errors);
+    } 
+
     User.findOne({email: req.body.email})
         .then( user => {
             if(user){
-                return res.status(400).json({ msg: 'email already taken'});
+                errors.email = 'Email already taken';
+                return res.status(400).json(errors);
             } else{
                 const avatar = gravatar.url(req.body.email, {
                     s: '200', // size
@@ -56,18 +69,27 @@ router.post('/login', (req, res) => {
     const email = req.body.email;
     const password = req.body.password;
 
+    // check validation
+    const { errors, isValid } = valiadteLoginInput(req.body);
+    if(!isValid){
+        console.log('here!')
+        return res.status(400).json(errors);
+    } 
+
     // check user by mail
     User.findOne({email})
     .then(user => {
         if(!user){
-            res.status(400).json({email:'Email not Found!'});
+            errors.email = 'Email not Found';
+            res.status(400).json(errors);
         }
 
         // check password
         bcrypt.compare(password, user.password)
         .then(isMatch => {
             if(!isMatch){
-                res.status(400).json({password: 'incorrect password'});
+                errors.password = 'Incorrect password';
+                res.status(400).json(errors);
             } else{
                 // craete a token here!
                 const payload = { id: user.id, name: user.name, avatar: user.avatar };
