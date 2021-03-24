@@ -9,6 +9,14 @@ const { rawListeners } = require('../../models/User');
 const User = require('../../models/User');
 
 
+// Load validation
+const validateProfileInput = require('../../validation/profile');
+const validateExperienceInput = require('../../validation/experience');
+const validateEducationInput = require('../../validation/education.js');
+
+const profile = require('../../validation/profile');
+
+
 // @route  GET api/profile/test
 // @desc test profile route 
 // @access public
@@ -21,6 +29,7 @@ router.get('/test', (req, res) => res.json({msg: "profile works"}));
 router.get('/', passport.authenticate('jwt', { session: false }), (req, res) => {
     const errors = {};
     Profile.findOne({ user: req.user.id })
+    .populate('user', ['name', 'avatar'])
     .then( profile => {
         if(!profile){
             errors.no_profile = 'Profile not found';
@@ -32,12 +41,147 @@ router.get('/', passport.authenticate('jwt', { session: false }), (req, res) => 
     .catch( err =>  res.status(404).json(err));
 });
 
+// @route  GET api/profile/handle/:handle
+// @desc   get profile by handle
+// @access public
+router.get('/handle/:handle', (req, res) => {
+
+    const errors = {};
+
+    Profile.findOne({ handle: req.params.handle })
+    .populate('user', ['name', 'avatar'])
+    .then(profile => {
+        if(!profile){
+            errors.no_profile = 'Profile not found for this handle';
+            res.status(404).json(erros);
+        }
+
+        res.json(profile);
+    })
+    .catch(err => res.status(404).json({ profile: 'Profile not found!'}));
+});
+
+// @route  GET api/profile/all
+// @desc   get all profiles
+// @access public
+router.get('/all', (req, res) => {
+
+    const errors = {};
+    Profile.find()
+    .populate('user', ['name', 'avatar'])
+    .then(profiles => {
+        if(!profiles){
+            errors.no_profile = 'There are no Profiles';
+            res.status(404).json(errors);
+        }
+        res.json(profiles);
+    })
+    .catch(err => res.status(404).json({ profile: 'There are no profiles!'}));
+});
+
+// @route  GET api/profile/user/:user_id
+// @desc   get profile by user_id
+// @access public
+router.get('/user/:user_id', (req, res) => {
+
+    const errors = {};
+
+    Profile.findOne({ user: req.params.user_id })
+    .populate('user', ['name', 'avatar'])
+    .then(profile => {
+        if(!profile){
+            errors.no_profile = 'User Not Found';
+            res.status(404).json(erros);
+        }
+
+        res.json(profile);
+    })
+    .catch(err => res.status(404).json({ profile: 'User not found!'}));
+});
+
+// @route  POST api/profile/experience
+// @desc   Add experience to profile
+// @access private
+router.post('/experience', passport.authenticate('jwt',{ session: false}),
+    (req, res) => {
+
+        // check validation
+        const { errors, isValid } = validateExperienceInput(req.body);
+
+        if(!isValid){
+            return res.status(404).json(errors);
+        }
+        
+        // first find the user profile
+        Profile.findOne({ user: req.user.id })
+        .then(profile => {
+
+            if(!profile){
+                errors.no_profile = 'Profile not found!';
+                res.status(404).json(errors);
+            }
+            const newExp = {
+                title: req.body.title,
+                company: req.body.company,
+                location: req.body.loaction,
+                from: req.body.from,
+                to: req.body.to,
+                current: req.body.current,
+                description: req.body.description
+            }
+
+            // add new experience to profile
+            profile.experience.push(newExp);
+            profile.save().then(profile => res.json(profile));
+        })
+        .catch(err => res.json(err));
+    }
+);
+
+// @route  POST api/profile/education
+// @desc   Add education to profile
+// @access private
+router.post('/education', passport.authenticate('jwt', { session: false }), 
+    (req, res) => {
+
+        // check validation
+        const { errors, isValid } = validateEducationInput(req.body);
+
+        if(!isValid){
+            return res.status(404).json(errors);
+        }
+
+        Profile.findOne({ user: req.user.id })
+        .then(profile => {
+
+            const newEdu = {
+                school: req.body.school,
+                degree: req.body.degree,
+                fieldofstudy: req.body.fieldofstudy,
+                from: req.body.from,
+                to: req.body.to,
+                current: req.body.current,
+                description: req.body.description
+            }
+    
+            profile.education.unshift(newEdu);
+            profile.save().then(profile => res.json(profile));
+        })
+        .catch(err => res.json(err));
+    }
+);
+
 // @route  POST api/profile
 // @desc   create profile
 // @access private
-router.get('/', passport.authenticate('jwt', { sesstion: false }), (req, res) => {
-    const errors = {};
+router.post('/', passport.authenticate('jwt', { session: false }), (req, res) => {
+    const { errors, isValid } = validateProfileInput(req.body);
     
+    if(!isValid){
+        // return errors
+        return res.status(400).json(errors);
+    }
+
     const profileFields = {};
     profileFields.user = req.user.id;
     if(req.body.handle) profileFields.handle = req.body.handle;
@@ -49,26 +193,27 @@ router.get('/', passport.authenticate('jwt', { sesstion: false }), (req, res) =>
     if(req.body.githubusername) profileFields.githubusername = req.body.githubusername;
     
     // skills split into arrays
-    if(typeof req.body.skill !== 'undefined'){
-        profileFields.skills = req.body.skill.split(',');
+    if(typeof req.body.skills !== 'undefined'){
+        profileFields.skills = req.body.skills.split(',');
     }
 
     // social
     profileFields.social = {};
 
-    if(req.body.youtube) profileFields.social.youtube = req.body.youtube;
-    if(req.body.insgram) profileFields.social.insgram = req.body.insgram;
+    if(req.body.youtube)  profileFields.social.youtube = req.body.youtube;
+    if(req.body.insgram)  profileFields.social.insgram = req.body.insgram;
     if(req.body.facebook) profileFields.social.facebook = req.body.facebook;
     if(req.body.linkedin) profileFields.social.linkedin = req.body.linkedin;
-    if(req.body.twitter) profileFields.social.ytwitter= req.body.twitter;
+    if(req.body.twitter)  profileFields.social.twitter= req.body.twitter;
 
 
     Profile.findOne({ user: req.user.id })
+    
     .then( profile => {
         if(profile){
             // update profile
-            Profile.findByIdAndUpdate(
-                { user: raq.user.id }, 
+            Profile.findOneAndUpdate(
+                { user: req.user.id }, 
                 { $set: profileFields },
                 { new: true }
                 )
@@ -84,8 +229,10 @@ router.get('/', passport.authenticate('jwt', { sesstion: false }), (req, res) =>
                     return res.status(400).json(errors);
                     
                 }
+                else{
                 // save new profile
-                new Profile(profileFields).save().then( profile => res.json(profile));
+                new Profile(profileFields).save().then( profile => res.json(profile)).catch(err => console.log(err));
+                }
             })
         }
     })
