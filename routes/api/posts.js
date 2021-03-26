@@ -81,4 +81,86 @@ router.delete('/:id', passport.authenticate('jwt', { session: false }),
        })
     }
 );
+
+// @route  Update api/posts/:id
+// @desc   Update post by id routes
+// @access private
+router.post('/update/:id', passport.authenticate('jwt', { session: false }), 
+    (req, res) => {
+       Profile.findOne({ id: req.user.id })
+       .then(profile => {
+           Post.findById(req.params.id)
+           .then(post => {
+               // check if user is the owner of the post
+               if(post.user.toString() !== req.user.id){
+                    // forbidden
+                    res.status(401).json({notAuhorized: 'User not authorized'});
+               }
+
+               // update post
+               const { isValid, errors } = ValidatePostInput(req.body);
+               if(!isValid){
+                   return res.status(400).json(errors);
+               }
+
+               post.text = req.body.text;
+               post.save().then(post => res.json(post)).catch(err => res.json(err));
+           })
+           .catch(err => res.status(400).json({error: 'post not found'}));
+       })
+    }
+);
+
+// @route  POST api/posts/like/:id
+// @desc   like post by id route
+// @access private
+router.post('/like/:id', passport.authenticate('jwt', { session: false}), 
+    (req, res) => {
+        // user should be logged in to like posts
+        Profile.findOne({ user: req.user.id}).then(profile => {
+            Post.findById(req.params.id)
+            .then(post => {
+                // check if already liked before
+                if (post.likes.filter(
+                    like => like.user.toString() === req.user.id).length > 0){
+                    return res.status(400).json({ alreadyLiked: 'User already liked this post!'});
+                }
+
+                // add like to the post
+                post.likes.push({ user: req.user.id});
+                post.save().then(post => res.json(post));
+            })
+            .catch(err => res.status(404).json({not_found: 'post not found'}))
+        }).catch(err => res.status(401).json({notAuhorized: 'User not authorized'}));
+    }
+);
+
+
+// @route  POST api/posts/unlike/:id
+// @desc   unlike post by id route
+// @access private
+router.post('/unlike/:id', passport.authenticate('jwt', { session: false}), 
+    (req, res) => {
+        // user should be logged in to like posts
+        Profile.findOne({ user: req.user.id}).then(profile => {
+            Post.findById(req.params.id)
+            .then(post => {
+                // check if already liked before
+                if (post.likes.filter(
+                    like => like.user.toString() === req.user.id).length === 0){
+                    return res.status(400).json({ notLiked: 'You have not liked this post!'});
+                }
+                
+                // Get remove index
+                const removeIndex = post.likes.map(item => item.user.toString())
+                .indexOf(req.user.id);
+                //console.log('here is fine')
+                // splice out of array
+                post.likes.splice(removeIndex, 1);
+                post.save().then(post => res.json(post));
+            })
+            .catch(err => res.status(404).json({not_found: 'post not found'}))
+        }).catch(err => res.status(401).json({notAuhorized: 'User not authorized'}));
+    }
+);
 module.exports = router;
