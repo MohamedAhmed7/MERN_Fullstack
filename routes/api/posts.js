@@ -5,6 +5,7 @@ const passport = require('passport');
 
 // Post model
 const Post = require('../../models/Post');
+const { rawListeners } = require('../../models/Profile');
 
 // Profile model
 const Profile = require('../../models/Profile');
@@ -154,6 +155,7 @@ router.post('/unlike/:id', passport.authenticate('jwt', { session: false}),
                 // Get remove index
                 const removeIndex = post.likes.map(item => item.user.toString())
                 .indexOf(req.user.id);
+
                 //console.log('here is fine')
                 // splice out of array
                 post.likes.splice(removeIndex, 1);
@@ -161,6 +163,61 @@ router.post('/unlike/:id', passport.authenticate('jwt', { session: false}),
             })
             .catch(err => res.status(404).json({not_found: 'post not found'}))
         }).catch(err => res.status(401).json({notAuhorized: 'User not authorized'}));
+    }
+);
+
+// @route  POST api/posts/comment/:id
+// @desc   Add comment to a post route
+// @access private
+router.post('/comment/:id', passport.authenticate('jwt', { session: false }),
+
+    (req, res) => {
+        const { isValid, errors } = ValidatePostInput(req.body);
+        if(!isValid){
+            return res.status(400).json(errors);
+        }
+
+        Post.findById(req.params.id)
+        .then(post => {
+            const newComment = {
+                text: req.body.text,
+                user: req.user.id,
+                name: req.body.name,
+                avatar: req.body.avatar
+            }
+            //console.log('here is fine   ')
+            // Add comment to comment's array
+            post.comments.unshift(newComment);
+            // save
+            post.save().then(post => res.json(post));
+        })
+        .catch(err => res.status(404).json({not_found: 'post not found'}));
+    }
+);
+
+// @route  DELETE api/posts/comment/:id/:comment_id
+// @desc   Delete comment to a post route
+// @access private
+router.delete('/comment/:id/:comment_id', passport.authenticate('jwt', { session: false }), 
+    (req, res) => {
+        Post.findById(req.params.id)
+        .then(post => {
+            // check if comment exists
+            if(post.comments.filter(
+            comment => comment._id.toString() === req.params.comment_id).length === 0){
+                return res.status(404).json({commentnotexists: "Comment doesn't exist!"});
+            }
+            
+            //if(post.user.id === req.user.id || post.comm)
+            // get remove index
+            const removeIndex = post.comments.map(item => item._id.toString())
+            .indexOf(req.params.comment_id);
+            // splice comment from comments arrat
+            post.comments.splice(removeIndex, 1);
+            post.save().then(post => res.json(post));
+
+        })
+        .catch(err => res.status(404).json({not_found: 'post not found'}));
     }
 );
 module.exports = router;
