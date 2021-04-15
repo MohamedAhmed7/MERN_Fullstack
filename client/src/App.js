@@ -1,10 +1,14 @@
 import './App.css';
-
+import Navbar from './components/layout/Navbar';
+import Footer from './components/layout/Footer';
+import Landing from './components/layout/Landing';
 function App() {
   return (
     <div className="App">
       <header className="App-header">
-        <h2>welcome to my app</h2>
+        <Navbar />
+        <Landing />
+        <Footer />
       </header>
     </div>
   );
